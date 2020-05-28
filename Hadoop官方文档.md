@@ -42,4 +42,126 @@ $ cp etc/hadoop/*.xml input
 $ bin/hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-3.2.1.jar grep input output 'dfs[a-z.]+'
 $ cat output/*
 ```
+## 伪分布式运行
+Hadoop可以在单节点中以伪分布式运行，其中每一个Hadoop守护进程作为一个独立的Java进程运行。
+### 配置
+使用以下内容：
 
+```etc/hadoop/core-site.xml:``` 
+```
+<configuration>
+    <property>
+        <name>fs.defaultFS</name>
+        <value>hdfs://localhost:9000</value>
+    </property>
+</configuration>
+```
+```etc/hadoop/hdfs-site.xml:``` 
+```
+<configuration>
+    <property>
+        <name>dfs.replication</name>
+        <value>1</value>
+    </property>
+</configuration>
+```
+### 设置无密码ssh
+现在确认您可以无需密码通过ssh连接到本地主机
+```
+$ ssh localhost
+```
+如果您不能通过无密码的ssh连接到本地主机，执行下面的命令：
+```
+$ ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa
+$ cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+$ chmod 0600 ~/.ssh/authorized_keys
+```
+### 执行
+以下说明是在本地运行MapReduce作业。如果您需要执行YARN作业，请参考[YARN on Single Node](https://hadoop.apache.org/docs/r3.2.1/hadoop-project-dist/hadoop-common/SingleCluster.html#YARN_on_Single_Node)
+1. 格式化文件系统：
+```
+$ bin/hdfs namenode -format
+```
+2. 启动NameNode和DataNode守护进程：
+```
+$ sbin/start-dfs.sh
+```
+Hadoop守护进程输出日志被写入```$ HADOOP_LOG_DIR``` 目录（默认为```$ HADOOP_HOME / logs``` ）
+3. 浏览NameNode的网页界面；默认的获取方式：
+* NameNode - http://localhost:9870/
+4. 设置执行MapReduce作业所需要的HDFS目录：
+```
+$ bin/hdfs dfs -mkdir /user
+$ bin/hdfs dfs -mkdir /user/<username>
+```
+5. 将输入文件复制到分布式文件系统中：
+```
+$ bin/hdfs dfs -mkdir input
+$ bin/hdfs dfs -put etc/hadoop/*.xml input
+```
+6. 运行提供的一些示例：
+```
+$ bin/hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-3.2.1.jar grep input output 'dfs[a-z.]+'
+```
+7. 检查输出文件：从分布式文件系统中复制输出文件到本地文件系统中并检查它们：
+```
+$ bin/hdfs dfs -get output output
+$ cat output/*
+```
+或者
+在分布式文件系统中检查输出文件：
+```
+$ bin/hdfs dfs -cat output/*
+```
+8. 完成后，使用以下命令停止守护进程：
+```
+$ sbin/stop-dfs.sh
+```
+### 在单节点上的YARN
+您可以通过设置一些参数在伪分布式的YARN上运行MapReduce作业，另外可以运行ResourceManager和NodeManager守护进程。
+以下指令假定[上述指令](https://hadoop.apache.org/docs/r3.2.1/hadoop-project-dist/hadoop-common/SingleCluster.html#Execution)中的1.~4.已经执行完成。
+1. 如下配置参数：
+```
+etc/hadoop/mapred-site.xml:
+```
+```
+<configuration>
+    <property>
+        <name>mapreduce.framework.name</name>
+        <value>yarn</value>
+    </property>
+    <property>
+        <name>mapreduce.application.classpath</name>
+        <value>$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/*:$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/lib/*</value>
+    </property>
+</configuration>
+```
+
+```
+etc/hadoop/yarn-site.xml:
+```
+```
+<configuration>
+    <property>
+        <name>yarn.nodemanager.aux-services</name>
+        <value>mapreduce_shuffle</value>
+    </property>
+    <property>
+        <name>yarn.nodemanager.env-whitelist</name>
+        <value>JAVA_HOME,HADOOP_COMMON_HOME,HADOOP_HDFS_HOME,HADOOP_CONF_DIR,CLASSPATH_PREPEND_DISTCACHE,HADOOP_YARN_HOME,HADOOP_MAPRED_HOME</value>
+    </property>
+</configuration>
+```
+2. 启动ResourceManager和NodeManager守护进程：
+```
+$ sbin/start-yarn.sh
+```
+3. 浏览ResourceManager的网页接口；默认方式如下：
+* ResourceManager - http://localhost:8088/
+4. 执行一个MapReduce作业。
+5. 完成后，使用以下命令结束守护进程：
+```
+$ sbin/stop-yarn.sh
+```
+## 全分布式运行
+有关设置全分布式，复杂集群的信息，请参考[集群设置](https://hadoop.apache.org/docs/r3.2.1/hadoop-project-dist/hadoop-common/ClusterSetup.html) 
